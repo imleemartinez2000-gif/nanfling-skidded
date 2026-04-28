@@ -52,4 +52,48 @@ local Plugin = {
                                 
                                 if sethiddenproperty then
                                     pcall(function()
-                                        sethiddenproperty(hrp, "PhysicsRepRootPart", trgt_hrp
+                                        sethiddenproperty(hrp, "PhysicsRepRootPart", trgt_hrp)
+                                    end)
+                                end
+                            end)
+
+                            -- NEW: Hold Jump + Move Forward for 3 seconds
+                            task.spawn(function()
+                                local jumpStart = tick()
+                                hum.Jump = true  -- Initial jump
+                                
+                                local jumpConnection
+                                jumpConnection = Runservice.Heartbeat:Connect(function()
+                                    local elapsed = tick() - jumpStart
+                                    
+                                    if elapsed >= 3 or not hum or not hum.Parent then
+                                        jumpConnection:Disconnect()
+                                        if hum then
+                                            hum.Jump = false
+                                        end
+                                        return
+                                    end
+                                    
+                                    -- Hold jump
+                                    hum.Jump = true
+                                    
+                                    -- Move forward (relative to your current facing direction)
+                                    if hum.MoveDirection then
+                                        hum:Move(hum.MoveDirection, false)  -- false = relative to camera
+                                    else
+                                        -- Fallback: move in the direction you're facing
+                                        local forward = hrp.CFrame.LookVector
+                                        forward = Vector3.new(forward.X, 0, forward.Z).Unit
+                                        hum:Move(forward, true)  -- true = world space
+                                    end
+                                end)
+                            end)
+                        end
+                    end
+                end
+            end
+        }
+    }
+}
+
+return Plugin
