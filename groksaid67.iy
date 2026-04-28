@@ -1,0 +1,98 @@
+local Runservice = cloneref(game:GetService("RunService"))
+local Players = cloneref(game:GetService("Players"))
+
+local Plugin = {
+    ["PluginName"] = "NaN Fling",
+    ["PluginDescription"] = "Fling + strong return loop with continuous jump for 5 seconds",
+    ["Commands"] = {
+        ["nanfling"] = {
+            ["ListName"] = "nanfling [plr]",
+            ["Description"] = "Fling player + strong return (jumps for 5s then auto stops)",
+            ["Aliases"] = {"nfling", "nanf"},
+            ["Function"] = function(args, speaker)
+                if not args[1] then return notify('Player Required', 'No player provided') end
+                
+                local nan_vector = Vector3.new(0/0, 0/0, 0/0)
+                
+                for _, v in next, getPlayer(args[1], speaker) do
+                    local trgt = Players:FindFirstChild(v)
+                    if not trgt or trgt == speaker then continue end
+                    
+                    local char = speaker.Character
+                    local trgt_chr = trgt.Character
+                    
+                    if char and trgt_chr then
+                        local hrp = char:FindFirstChild("HumanoidRootPart")
+                        local hum = char:FindFirstChildOfClass("Humanoid")
+                        local trgt_hrp = trgt_chr:FindFirstChild("HumanoidRootPart")
+                        
+                        if hrp and hum and trgt_hrp then
+                            
+                            notify("Flinging", "Flinging " .. trgt.Name .. "\nJumping for 5 seconds + strong return")
+                            
+                            local originalCFrame = hrp.CFrame
+                            local returnConnection = nil
+                            local totalStartTime = tick()
+
+                            hum.PlatformStand = true
+                            local fling_connection
+
+                            fling_connection = Runservice.Heartbeat:Connect(function()
+                                local elapsed = tick() - totalStartTime
+
+                                -- === NAN FLING PHASE (first 1.5 seconds) ===
+                                if elapsed < 1.5 and char.Parent and trgt_chr.Parent then
+                                    hrp.CFrame = trgt_hrp.CFrame
+                                    hrp.AssemblyLinearVelocity = nan_vector
+                                    hrp.AssemblyAngularVelocity = nan_vector
+                                    
+                                    pcall(function() hum:Move(nan_vector) end)
+                                    
+                                    if sethiddenproperty then
+                                        pcall(function()
+                                            sethiddenproperty(hrp, "PhysicsRepRootPart", trgt_hrp)
+                                        end)
+                                    end
+                                else
+                                    -- Start strong return loop after fling
+                                    if fling_connection then 
+                                        fling_connection:Disconnect() 
+                                    end
+                                    
+                                    if hum then hum.PlatformStand = false end
+
+                                    returnConnection = Runservice.Heartbeat:Connect(function()
+                                        if not hrp or not hrp.Parent then 
+                                            returnConnection:Disconnect()
+                                            return 
+                                        end
+                                        
+                                        -- Strong return (very sensitive)
+                                        if (hrp.CFrame.Position - originalCFrame.Position).Magnitude > 1 then
+                                            hrp.CFrame = originalCFrame
+                                            hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                                            hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                                        end
+                                    end)
+                                end
+
+                                -- Hold Jump for full 5 seconds
+                                if elapsed < 5 and hum then
+                                    hum.Jump = true
+                                else
+                                    if hum then hum.Jump = false end
+                                    if returnConnection then
+                                        returnConnection:Disconnect()
+                                    end
+                                    notify("Return Loop Stopped", "5 seconds completed")
+                                end
+                            end)
+                        end
+                    end
+                end
+            end
+        }
+    }
+}
+
+return Plugin
