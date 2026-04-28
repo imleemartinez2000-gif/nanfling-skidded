@@ -1,0 +1,131 @@
+local Runservice = cloneref(game:GetService("RunService"))
+local Players = cloneref(game:GetService("Players"))
+local UserInputService = cloneref(game:GetService("UserInputService"))
+
+local Plugin = {
+    ["PluginName"] = "NaN Fling",
+    ["PluginDescription"] = "Fling players using nan fling + return loop (stop by holding jump 2s)",
+    ["Commands"] = {
+        ["nanfling"] = {
+            ["ListName"] = "nanfling [plr]",
+            ["Description"] = "Fling + auto return loop (hold jump 2 seconds to stop)",
+            ["Aliases"] = {"nfling", "nanf"},
+            ["Function"] = function(args, speaker)
+                if not args[1] then return notify('Player Required', 'No player provided') end
+                
+                local nan_vector = Vector3.new(0/0, 0/0, 0/0)
+                
+                for _, v in next, getPlayer(args[1], speaker) do
+                    local trgt = Players:FindFirstChild(v)
+                    if not trgt or trgt == speaker then continue end
+                    
+                    local char = speaker.Character
+                    local trgt_chr = trgt.Character
+                    
+                    if char and trgt_chr then
+                        local hrp = char:FindFirstChild("HumanoidRootPart")
+                        local hum = char:FindFirstChildOfClass("Humanoid")
+                        local trgt_hrp = trgt_chr:FindFirstChild("HumanoidRootPart")
+                        
+                        if hrp and hum and trgt_hrp then
+                            
+                            notify("Flinging", "Flinging " .. trgt.Name .. "\nHold JUMP for 2 seconds to stop return loop")
+                            
+                            -- Save original position
+                            local originalCFrame = hrp.CFrame
+                            local returnConnection = nil
+                            local stopHoldStart = 0
+                            local isHoldingJump = false
+                            
+                            hum.PlatformStand = true
+                            local start_time = tick()
+                            local fling_connection
+                            
+                            fling_connection = Runservice.Heartbeat:Connect(function()
+                                local current_time = tick()
+                                
+                                -- Initial fling phase (1.5 seconds)
+                                if (current_time - start_time) < 1.5 and char.Parent and trgt_chr.Parent then
+                                    hrp.CFrame = trgt_hrp.CFrame
+                                    hrp.AssemblyLinearVelocity = nan_vector
+                                    hrp.AssemblyAngularVelocity = nan_vector
+                                    
+                                    pcall(function() hum:Move(nan_vector) end)
+                                    
+                                    if sethiddenproperty then
+                                        pcall(function()
+                                            sethiddenproperty(hrp, "PhysicsRepRootPart", trgt_hrp)
+                                        end)
+                                    end
+                                else
+                                    -- Fling phase ended → Start return loop
+                                    fling_connection:Disconnect()
+                                    
+                                    if hum then hum.PlatformStand = false end
+                                    
+                                    -- Start the return loop
+                                    returnConnection = Runservice.Heartbeat:Connect(function()
+                                        if not hrp or not hrp.Parent then 
+                                            returnConnection:Disconnect()
+                                            return 
+                                        end
+                                        
+                                        -- Force return to original position if moved too far
+                                        if (hrp.CFrame.Position - originalCFrame.Position).Magnitude > 4 then
+                                            hrp.CFrame = originalCFrame
+                                            hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                                            hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                                        end
+                                    end)
+                                    
+                                    notify("Return Loop Active", "Hold JUMP for 2 seconds to disable")
+                                end
+                            end)
+
+                            -- Jump hold detection to stop the loop
+                            local jumpConnection = UserInputService.InputBegan:Connect(function(input, gpe)
+                                if gpe then return end
+                                if input.KeyCode == Enum.KeyCode.Space then
+                                    isHoldingJump = true
+                                    stopHoldStart = tick()
+                                end
+                            end)
+
+                            local jumpReleaseConnection = UserInputService.InputEnded:Connect(function(input, gpe)
+                                if gpe then return end
+                                if input.KeyCode == Enum.KeyCode.Space then
+                                    isHoldingJump = false
+                                end
+                            end)
+
+                            -- Check if jump has been held for 2 seconds
+                            task.spawn(function()
+                                while task.wait(0.1) do
+                                    if isHoldingJump and (tick() - stopHoldStart) >= 2 then
+                                        if returnConnection then
+                                            returnConnection:Disconnect()
+                                        end
+                                        jumpConnection:Disconnect()
+                                        jumpReleaseConnection:Disconnect()
+                                        notify("Return Loop Stopped", "You can now move freely")
+                                        break
+                                    end
+                                    
+                                    -- Safety: stop checking if character is gone
+                                    if not char.Parent then
+                                        if returnConnection then returnConnection:Disconnect() end
+                                        jumpConnection:Disconnect()
+                                        jumpReleaseConnection:Disconnect()
+                                        break
+                                    end
+                                end
+                            end)
+                        end
+                    end
+                end
+            end
+        }
+    }
+}
+
+return Plugin
