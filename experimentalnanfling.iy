@@ -1,0 +1,110 @@
+local Runservice = cloneref(game:GetService("RunService"))
+local Players = cloneref(game:GetService("Players"))
+
+local Plugin = {
+    ["PluginName"] = "NaN Fling",
+    ["PluginDescription"] = "Short nanfling (0.5s) + 3s return with forward movement",
+    ["Commands"] = {
+        ["nanfling"] = {
+            ["ListName"] = "nanfling [plr]",
+            ["Description"] = "0.5s nanfling then 3s strong return with forward movement",
+            ["Aliases"] = {"nanf", "nf"},
+            ["Function"] = function(args, speaker)
+                if not args[1] then return notify('Player Required', 'No player provided') end
+                
+                local nan_vector = Vector3.new(0/0, 0/0, 0/0)
+                
+                for _, v in next, getPlayer(args[1], speaker) do
+                    local trgt = Players:FindFirstChild(v)
+                    if not trgt or trgt == speaker then continue end
+                    
+                    local char = speaker.Character
+                    local trgt_chr = trgt.Character
+                    
+                    if char and trgt_chr then
+                        local hrp = char:FindFirstChild("HumanoidRootPart")
+                        local hum = char:FindFirstChildOfClass("Humanoid")
+                        local trgt_hrp = trgt_chr:FindFirstChild("HumanoidRootPart")
+                        
+                        if hrp and hum and trgt_hrp then
+                            
+                            notify("Flinging", "0.5s nanfling → 3s return with forward movement")
+                            
+                            local originalCFrame = hrp.CFrame
+                            local totalStartTime = tick()
+                            local returnConnection = nil
+
+                            hum.PlatformStand = true
+
+                            local mainConnection
+                            mainConnection = Runservice.Heartbeat:Connect(function()
+                                local elapsed = tick() - totalStartTime
+
+                                -- Stop everything after 3 seconds
+                                if elapsed >= 3 then
+                                    mainConnection:Disconnect()
+                                    if returnConnection then 
+                                        returnConnection:Disconnect() 
+                                    end
+                                    if hum then 
+                                        hum.Jump = false
+                                        hum.PlatformStand = false 
+                                    end
+                                    notify("Return Complete", "3 seconds finished")
+                                    return
+                                end
+
+                                -- Hold Jump for full 3 seconds
+                                if hum then
+                                    hum.Jump = true
+                                end
+
+                                -- === NAN FLING PHASE (only 0.5 seconds) ===
+                                if elapsed < 0.5 and char.Parent and trgt_chr.Parent then
+                                    hrp.CFrame = trgt_hrp.CFrame
+                                    hrp.AssemblyLinearVelocity = nan_vector
+                                    hrp.AssemblyAngularVelocity = nan_vector
+                                    
+                                    pcall(function() hum:Move(nan_vector) end)
+                                    
+                                    if sethiddenproperty then
+                                        pcall(function()
+                                            sethiddenproperty(hrp, "PhysicsRepRootPart", trgt_hrp)
+                                        end)
+                                    end
+                                else
+                                    -- === RETURN PHASE (0.5s to 3s) ===
+                                    if not returnConnection then
+                                        returnConnection = Runservice.Heartbeat:Connect(function()
+                                            if not hrp or not hrp.Parent then
+                                                returnConnection:Disconnect()
+                                                return
+                                            end
+                                            
+                                            -- Strong return to original position
+                                            if (hrp.CFrame.Position - originalCFrame.Position).Magnitude > 1 then
+                                                hrp.CFrame = originalCFrame
+                                                hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                                                hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                                            end
+                                        end)
+                                    end
+
+                                    -- Move Forward (Joystick forward) during return phase
+                                    if hum then
+                                        -- This makes your character walk forward in the direction you're facing
+                                        local forwardDir = hrp.CFrame.LookVector
+                                        forwardDir = Vector3.new(forwardDir.X, 0, forwardDir.Z).Unit
+                                        hum:Move(forwardDir, true)   -- true = world space
+                                    end
+                                end
+                            end)
+                        end
+                    end
+                end
+            end
+        }
+    }
+}
+
+return Plugin
