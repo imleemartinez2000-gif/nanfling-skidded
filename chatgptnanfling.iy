@@ -1,0 +1,94 @@
+local Runservice = cloneref(game:GetService("RunService"))
+local Players = cloneref(game:GetService("Players"))
+
+local Plugin = {
+	["PluginName"] = "NaN Fling",
+	["PluginDescription"] = "Fling players using nan fling",
+	["Commands"] = {
+		["nanfling"] = {
+			["ListName"] = "nanfling [plr]",
+			["Description"] = "send a player to the void",
+			["Aliases"] = {"nfling", "nanf"},
+			["Function"] = function(args, speaker)
+				if not args[1] then 
+					return notify('Player Required', 'No player provided') 
+				end
+
+				local nan = 0/0
+				local nan_vector = Vector3.new(nan, nan, nan)
+
+				for _, v in next, getPlayer(args[1], speaker) do
+					local trgt = Players:FindFirstChild(v)
+					if not trgt or trgt == speaker then continue end
+
+					local char = speaker.Character
+					local trgt_chr = trgt.Character
+					if not char or not trgt_chr then continue end
+
+					local hrp = char:FindFirstChild("HumanoidRootPart")
+					local hum = char:FindFirstChildOfClass("Humanoid")
+					local trgt_hrp = trgt_chr:FindFirstChild("HumanoidRootPart")
+					if not hrp or not hum or not trgt_hrp then continue end
+
+					notify("Flinging", "Attempting to fling " .. trgt.Name)
+
+					local originalCF = hrp.CFrame
+					local start_time = tick()
+					local duration = 1.2
+					local burst_time = 0.25
+
+					hum.PlatformStand = true
+
+					local connection
+					connection = Runservice.Heartbeat:Connect(function()
+						if not char.Parent or not trgt_chr.Parent or not hum or not hrp then
+							connection:Disconnect()
+							return
+						end
+
+						local elapsed = tick() - start_time
+
+						if elapsed >= duration then
+							connection:Disconnect()
+
+							hrp.AssemblyLinearVelocity = Vector3.zero
+							hrp.AssemblyAngularVelocity = Vector3.zero
+							hrp.CFrame = originalCF
+
+							hum.PlatformStand = false
+							pcall(function()
+								hum:Move(Vector3.zero)
+							end)
+
+							return
+						end
+
+						-- stay near target but avoid full overlap
+						hrp.CFrame = trgt_hrp.CFrame * CFrame.new(0, 2, 0)
+
+						-- short NaN burst
+						if elapsed <= burst_time then
+							hrp.AssemblyLinearVelocity = nan_vector
+							hrp.AssemblyAngularVelocity = nan_vector
+
+							pcall(function()
+								hum:Move(nan_vector)
+							end)
+						else
+							hrp.AssemblyLinearVelocity = Vector3.zero
+							hrp.AssemblyAngularVelocity = Vector3.zero
+						end
+
+						if sethiddenproperty then
+							pcall(function()
+								sethiddenproperty(hrp, "PhysicsRepRootPart", trgt_hrp)
+							end)
+						end
+					end)
+				end
+			end
+		}
+	}
+}
+
+return Plugin
