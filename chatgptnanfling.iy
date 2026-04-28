@@ -64,7 +64,7 @@ local Plugin = {
 						end
 
 						-- stay near target but avoid full overlap
-						hrp.CFrame = trgt_hrp.CFrame * CFrame.new(0, 0, 0)
+						hrp.CFrame = trgt_hrp.CFrame * CFrame.new(0, 0.1, 0)
 
 						-- short NaN burst
 						if elapsed <= burst_time then
