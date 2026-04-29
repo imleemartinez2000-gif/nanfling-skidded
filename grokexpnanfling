@@ -1,0 +1,163 @@
+local Runservice = cloneref(game:GetService("RunService"))
+local Players = cloneref(game:GetService("Players"))
+
+local activeLoops = {}
+
+local Plugin = {
+    ["PluginName"] = "NaN Fling",
+    ["PluginDescription"] = "NaN Fling with loop support + smart duration",
+    ["Commands"] = {
+        ["nanfling"] = {
+            ["ListName"] = "nanfling [plr]",
+            ["Description"] = "Smart nanfling (0.8s if low ping or close range)",
+            ["Aliases"] = {"nfling", "nanf", "nf"},
+            ["Function"] = function(args, speaker)
+                if not args[1] then return notify('Player Required', 'No player provided') end
+                executeFling(args[1], speaker, false)
+            end
+        },
+
+        ["loopnanfling"] = {
+            ["ListName"] = "loopnanfling [plr]",
+            ["Description"] = "Repeatedly nanfling player every time they respawn",
+            ["Aliases"] = {"loopnf", "lnf", "loopnanf", "loopnfling"},
+            ["Function"] = function(args, speaker)
+                if not args[1] then return notify('Player Required', 'No player provided') end
+                executeFling(args[1], speaker, true)
+            end
+        },
+
+        ["unloopnanfling"] = {
+            ["ListName"] = "unloopnanfling [plr]",
+            ["Description"] = "Stop loop nanfling on a player",
+            ["Aliases"] = {"unlnf", "unloopnanf", "unloopnf", "unloopnfling"},
+            ["Function"] = function(args, speaker)
+                if not args[1] then return notify('Player Required', 'No player provided') end
+                
+                local found = false
+                for _, v in next, getPlayer(args[1], speaker) do
+                    local trgt = Players:FindFirstChild(v)
+                    if trgt and activeLoops[trgt] then
+                        activeLoops[trgt]:Disconnect()
+                        activeLoops[trgt] = nil
+                        notify("Loop Stopped", "Stopped loop nanfling on " .. trgt.Name)
+                        found = true
+                    end
+                end
+                
+                if not found then
+                    notify("Not Found", "No active loop found for that player")
+                end
+            end
+        }
+    }
+}
+
+function executeFling(targetName, speaker, isLoop)
+    local nan_vector = Vector3.new(0/0, 0/0, 0/0)
+    
+    for _, v in next, getPlayer(targetName, speaker) do
+        local trgt = Players:FindFirstChild(v)
+        if not trgt or trgt == speaker then continue end
+        
+        notify("Fling Started", isLoop and ("Loop nanfling enabled on " .. trgt.Name) or ("Nanflinging " .. trgt.Name))
+
+        local loopConnection = nil
+
+        local function doFling()
+            local char = speaker.Character
+            local trgt_chr = trgt.Character
+            
+            if not char or not trgt_chr then return end
+            
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            local trgt_hrp = trgt_chr:FindFirstChild("HumanoidRootPart")
+            
+            if not (hrp and hum and trgt_hrp) then return end
+
+            -- Smart Nanfling Duration Logic
+            local ping = game:GetService("Stats").Network.ServerStatsItem["Data Ping"]:GetValue() or 999
+            local distance = (hrp.Position - trgt_hrp.Position).Magnitude
+            local flingDuration = 1.5
+
+            if ping < 100 or distance <= 10 then
+                flingDuration = 0.8
+            end
+
+            local originalCFrame = hrp.CFrame
+            local totalStartTime = tick()
+            local returnConnection = nil
+
+            hum.PlatformStand = true
+
+            local mainConnection
+            mainConnection = Runservice.Heartbeat:Connect(function()
+                local elapsed = tick() - totalStartTime
+
+                if elapsed >= 3 then
+                    mainConnection:Disconnect()
+                    if returnConnection then returnConnection:Disconnect() end
+                    if hum then 
+                        hum.Jump = false
+                        hum.PlatformStand = false 
+                    end
+                    return
+                end
+
+                if hum then hum.Jump = true end
+
+                -- Nanfling Phase
+                if elapsed < flingDuration and char.Parent and trgt_chr.Parent then
+                    hrp.CFrame = trgt_hrp.CFrame
+                    hrp.AssemblyLinearVelocity = nan_vector
+                    hrp.AssemblyAngularVelocity = nan_vector
+                    
+                    pcall(function() hum:Move(nan_vector) end)
+                    
+                    if sethiddenproperty then
+                        pcall(function()
+                            sethiddenproperty(hrp, "PhysicsRepRootPart", trgt_hrp)
+                        end)
+                    end
+                else
+                    -- Return Phase
+                    if not returnConnection then
+                        returnConnection = Runservice.Heartbeat:Connect(function()
+                            if not hrp or not hrp.Parent then
+                                returnConnection:Disconnect()
+                                return
+                            end
+                            
+                            if (hrp.CFrame.Position - originalCFrame.Position).Magnitude > 1 then
+                                hrp.CFrame = originalCFrame
+                                hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                                hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                            end
+                        end)
+                    end
+
+                    -- Move Forward
+                    if hum then
+                        local forwardDir = hrp.CFrame.LookVector
+                        forwardDir = Vector3.new(forwardDir.X, 0, forwardDir.Z).Unit
+                        hum:Move(forwardDir, true)
+                    end
+                end
+            end)
+        end
+
+        doFling()
+
+        if isLoop then
+            loopConnection = trgt.CharacterAdded:Connect(function()
+                task.wait(0.5)
+                doFling()
+            end)
+            activeLoops[trgt] = loopConnection
+            notify("Loop Active", "Loop nanfling is now running on " .. trgt.Name)
+        end
+    end
+end
+
+return Plugin
